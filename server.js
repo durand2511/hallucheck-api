@@ -175,15 +175,17 @@ async function handleAsk(req, res, customer) {
   if (!b.question) return json(res, 400, { error: { message: "veld 'question' verplicht" } });
   try {
     const t0 = Date.now();
-    const { answer, extraction } = await sagemakerModel.ask({ question: b.question, document: b.document });
+    const { answer, citations, extraction, chunkCount } = await sagemakerModel.ask({ question: b.question, document: b.document });
     const ms = Date.now() - t0;
     await recordUsage(customer, { route: "/v1/ask", ms });
-    logRun({ type: "ask", customerId: customer.id, ms });
+    logRun({ type: "ask", customerId: customer.id, ms, chunkCount });
     return json(res, 200, {
       id: "ask-" + crypto.randomBytes(8).toString("hex"),
       model: "vankonijnenburg-1",
       answer,
+      citations,
       x_extraction: extraction,
+      x_document_chunks: chunkCount,
     });
   } catch (e) { return json(res, 502, { error: { message: String(e.message || e) } }); }
 }
