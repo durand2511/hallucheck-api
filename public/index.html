@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>HalluCheck — hallucinatie-verificatie</title>
+<style>
+  :root{--bg:#0b0f17;--panel:#131a26;--panel2:#1a2333;--line:#26314a;--text:#e7ecf5;--muted:#8b98b0;--accent:#5b8cff;--green:#34d399;--amber:#fbbf24;--red:#f87171;--r:14px;}
+  *{box-sizing:border-box;}
+  body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:radial-gradient(1200px 600px at 80% -10%,#16223a 0%,var(--bg) 55%);color:var(--text);-webkit-font-smoothing:antialiased;min-height:100vh;}
+  .wrap{max-width:1000px;margin:0 auto;padding:26px 20px 90px;}
+  .badge{display:inline-block;font-size:12px;color:var(--accent);background:rgba(91,140,255,.12);border:1px solid rgba(91,140,255,.3);padding:3px 10px;border-radius:999px;}
+  h1{font-size:24px;margin:8px 0 2px;letter-spacing:-.5px;}
+  .sub{color:var(--muted);font-size:14px;margin-bottom:22px;}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:20px;margin-bottom:18px;}
+  .card h2{font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin:0 0 14px;}
+  label{display:block;font-size:13px;color:var(--muted);margin:12px 0 6px;}
+  input,select,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);color:var(--text);padding:10px 12px;border-radius:10px;font-size:14px;outline:none;font-family:inherit;}
+  textarea{min-height:80px;resize:vertical;}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent);}
+  .row{display:flex;gap:12px;flex-wrap:wrap;}
+  .row>div{flex:1;min-width:150px;}
+  button{background:var(--accent);color:#fff;border:none;padding:11px 18px;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;}
+  button.ghost{background:transparent;border:1px solid var(--line);color:var(--text);}
+  .muted{color:var(--muted);font-size:13px;line-height:1.55;}
+  .scorebox{display:flex;align-items:center;gap:20px;flex-wrap:wrap;}
+  .gauge{font-size:44px;font-weight:800;letter-spacing:-1px;}
+  .counts{display:flex;gap:10px;flex-wrap:wrap;}
+  .pill{font-size:12px;padding:4px 10px;border-radius:999px;border:1px solid var(--line);}
+  .pill.g{color:var(--green);border-color:rgba(52,211,153,.4);background:rgba(52,211,153,.1);}
+  .pill.r{color:var(--red);border-color:rgba(248,113,113,.4);background:rgba(248,113,113,.1);}
+  .pill.a{color:var(--amber);border-color:rgba(251,191,36,.4);background:rgba(251,191,36,.1);}
+  .claim{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;}
+  .claim .top{display:flex;gap:10px;align-items:flex-start;}
+  .v{flex:0 0 auto;font-size:12px;font-weight:700;padding:2px 8px;border-radius:6px;margin-top:1px;}
+  .v.supported{background:rgba(52,211,153,.15);color:var(--green);}
+  .v.contradicted{background:rgba(248,113,113,.15);color:var(--red);}
+  .v.insufficient{background:rgba(251,191,36,.15);color:var(--amber);}
+  .ev{margin-top:8px;font-size:12.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:10px;line-height:1.5;}
+  .answer{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:14px;white-space:pre-wrap;font-size:14px;line-height:1.55;}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--panel2);border:1px solid var(--green);color:var(--text);padding:10px 18px;border-radius:10px;font-size:14px;opacity:0;transition:.2s;pointer-events:none;}
+  .toast.show{opacity:1;}
+  code{background:var(--panel2);border:1px solid var(--line);padding:1px 6px;border-radius:6px;font-size:12px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="badge">HalluCheck</div>
+  <h1>Hallucinatie-verificatie voor AI-antwoorden</h1>
+  <div class="sub">Genereert een antwoord, ontleedt het in claims, en toetst elke claim aan jouw bronnen — met score &amp; audit-trail. Drop-in op <code>/v1/chat/completions</code>.</div>
+
+  <div class="card">
+    <h2>1 · Provider-key</h2>
+    <div class="row">
+      <div><label>Provider</label>
+        <select id="provider">
+          <optgroup label="LLM (genereren + verifiëren)">
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="openai">OpenAI</option>
+            <option value="gemini">Google Gemini</option>
+            <option value="deepseek">DeepSeek</option>
+          </optgroup>
+          <optgroup label="Web-search (hele internet afzoeken)">
+            <option value="tavily">Tavily (gratis tier)</option>
+            <option value="brave">Brave Search (gratis tier)</option>
+          </optgroup>
+        </select>
+      </div>
+      <div style="flex:2"><label>API-key</label><input id="key" placeholder="sk-… (of MOCK om zonder key te proberen)"></div>
+    </div>
+    <div style="margin-top:12px"><button id="saveKey">Key opslaan</button> <span id="provStatus" class="muted"></span></div>
+  </div>
+
+  <div class="card">
+    <h2>2 · Bronnen <span style="text-transform:none;letter-spacing:0;color:var(--muted)">(optioneel)</span></h2>
+    <div class="muted" style="margin-bottom:6px"><b>Laat leeg</b> → het systeem haalt zélf bewijs op (Crossref voor citaties, Wikipedia voor feiten). Of plak eigen bronnen (gescheiden met een <b>lege regel</b>) om daartegen te toetsen — bijv. een contract of kennisbank-artikel.</div>
+    <textarea id="sources" style="min-height:90px" placeholder="Leeg laten voor automatische verificatie — of plak hier je eigen brondocument(en)…"></textarea>
+  </div>
+
+  <div class="card">
+    <h2>3 · Vraag stellen</h2>
+    <div class="row">
+      <div><label>Genereer-model</label><select id="model"></select></div>
+      <div><label>Verificatie-model (jury)</label><select id="judge"></select></div>
+    </div>
+    <label>Prompt</label>
+    <textarea id="prompt" placeholder="Bijv. 'Vat de belangrijkste voorwaarden van dit contract samen.'"></textarea>
+    <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap">
+      <button id="run">Genereer &amp; verifieer</button>
+      <button class="ghost" id="verifyOnly">Alleen verifiëren (plak zelf een antwoord)</button>
+    </div>
+    <div id="out" style="margin-top:18px;display:none"></div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,12 @@
+node_modules/
+.env
+data.json
+models/
+data/
+collab_training/
+S1-Agent/
+DeepLiterature/
+gpu/
+*.tar.gz
+runpodctl
+.DS_Store
