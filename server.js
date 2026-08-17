@@ -197,6 +197,7 @@ function normSources(src) {
 http.createServer(async (req, res) => {
   const urlPath = decodeURIComponent(req.url.split("?")[0]);
   try {
+    if (urlPath === "/healthz" && req.method === "GET") return json(res, 200, { ok: true });
     if (urlPath === "/v1/ask" && req.method === "POST") {
       const customer = await requireApiKey(req);
       if (!customer) return json(res, 401, { error: { message: "ongeldige of ontbrekende Authorization: Bearer <api key>" } });
