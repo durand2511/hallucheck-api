@@ -8,6 +8,8 @@ const { verify, refine } = require("./lib/verify");
 const { selfCheck } = require("./lib/selfcheck");
 const sagemakerModel = require("./lib/sagemaker");
 const { requireApiKey, recordUsage, createCustomer, createApiKey } = require("./lib/auth");
+const marketplace = require("./lib/marketplace");
+const db = require("./lib/db");
 
 const PORT = process.env.PORT || 8091;
 const ROOT = path.join(__dirname, "public");
@@ -186,6 +188,24 @@ async function handleAsk(req, res, customer) {
   } catch (e) { return json(res, 502, { error: { message: String(e.message || e) } }); }
 }
 
+// ---------- /marketplace/register : AWS Marketplace "product registration URL" ----------
+// Buyer is redirected here after subscribing, with a one-time token AWS uses to identify them.
+// We resolve it, then collect their email (marketplace doesn't give us one) and issue an API key.
+async function handleMarketplaceRegister(req, res) {
+  const b = await readBody(req);
+  const token = b.token || b["x-amzn-marketplace-token"];
+  if (!token) return json(res, 400, { error: "veld 'token' (x-amzn-marketplace-token) verplicht" });
+  if (!b.email) return json(res, 400, { error: "veld 'email' verplicht" });
+  try {
+    const resolved = await marketplace.resolveCustomer(token);
+    if (!resolved) return json(res, 502, { error: "AWS Marketplace is nog niet geconfigureerd (MARKETPLACE_PRODUCT_CODE ontbreekt)" });
+    const customer = await createCustomer({ email: b.email, company: b.company });
+    await db.query(`UPDATE customers SET marketplace_customer_id = $1 WHERE id = $2`, [resolved.customerIdentifier, customer.id]);
+    const apiKey = await createApiKey(customer.id, "marketplace");
+    return json(res, 200, { customerId: customer.id, apiKey });
+  } catch (e) { return json(res, 502, { error: String(e.message || e) }); }
+}
+
 function normSources(src) {
   if (!src) return [];
   if (typeof src === "string") return src.trim() ? [{ id: "S1", text: src }] : [];
@@ -198,6 +218,7 @@ http.createServer(async (req, res) => {
   const urlPath = decodeURIComponent(req.url.split("?")[0]);
   try {
     if (urlPath === "/healthz" && req.method === "GET") return json(res, 200, { ok: true });
+    if (urlPath === "/marketplace/register" && req.method === "POST") return handleMarketplaceRegister(req, res);
     if (urlPath === "/v1/ask" && req.method === "POST") {
       const customer = await requireApiKey(req);
       if (!customer) return json(res, 401, { error: { message: "ongeldige of ontbrekende Authorization: Bearer <api key>" } });

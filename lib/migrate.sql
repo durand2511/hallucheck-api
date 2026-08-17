@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS customers (
   company TEXT,
   stripe_customer_id TEXT,
   stripe_subscription_item_id TEXT,
+  marketplace_customer_id TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -30,3 +31,5 @@ CREATE TABLE IF NOT EXISTS usage_events (
 
 CREATE INDEX IF NOT EXISTS idx_usage_events_customer_created ON usage_events (customer_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_api_keys_customer ON api_keys (customer_id);
+
+ALTER TABLE customers ADD COLUMN IF NOT EXISTS marketplace_customer_id TEXT;
